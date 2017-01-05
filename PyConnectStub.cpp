@@ -17,12 +17,13 @@
  *  You should have received a copy of the GNU General Public License
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
+#ifndef OPENR_OBJECT
 #ifdef WIN32
 #pragma warning( disable: 4018 )
 #include <ws2tcpip.h>
 #else
 #include <arpa/inet.h>
+#endif
 #endif
 
 #include "PyConnectStub.h"
@@ -236,12 +237,15 @@ void PyConnectObject::setNetworkAddress( struct sockaddr_in & cAddr )
   PyDict_SetItemString( this->myDict_, "__port__", portObj );
   Py_DECREF( portObj );
   
+#ifdef OPENR_OBJECT
+#else
   char cAddrStr[INET_ADDRSTRLEN];
   inet_ntop( AF_INET, &cAddr.sin_addr.s_addr, cAddrStr, INET_ADDRSTRLEN );
 
   PyObject * ipObj = PyString_FromString( cAddrStr );
   PyDict_SetItemString( this->myDict_, "__ip__", ipObj );
   Py_DECREF( ipObj );
+#endif
 }
 
 PyConnectObject::~PyConnectObject()
@@ -696,9 +700,10 @@ void PyConnectStub::addNewModule( std::string & name, std::string & desc, char o
   }
 
   // threadsafe lock
+#ifndef OPENR_OBJECT
   PyGILState_STATE gstate;
   gstate = PyGILState_Ensure();
-  
+#endif
   // trying to load a module script contains partial implementation
   // for the PyConnect module
 /* Not use this for the moment.
@@ -760,8 +765,9 @@ void PyConnectStub::addNewModule( std::string & name, std::string & desc, char o
   PyObject_SetAttrString( pPyConnect_, const_cast<char*>(name.c_str()), py_newObj );
   
   modules_.push_back( py_newObj );
+#ifndef OPENR_OBJECT
   PyGILState_Release( gstate );
-
+#endif
   assignModuleID( name, nextObjId_++ );
 }
 
@@ -793,9 +799,10 @@ void PyConnectStub::shutdownModuleByRef( PyConnectObject * obj )
     this->dispatchMessage( dataBuffer, 3 );
   
     // threadsafe lock
+#ifndef OPENR_OBJECT
     PyGILState_STATE gstate;
     gstate = PyGILState_Ensure();
-    
+#endif
     PyObject * arg = Py_BuildValue( "(si)", obj->name().c_str(), obj->id() );
     if (pow_) {
       invokeCallback( pow_->mainScript(), "onModuleDestroyed", arg );
@@ -807,7 +814,9 @@ void PyConnectStub::shutdownModuleByRef( PyConnectObject * obj )
     PyObject_DelAttrString( pPyConnect_, const_cast<char *>(obj->name().c_str()) );
     Py_DECREF( *miter );
     modules_.erase( miter );
+#ifndef OPENR_OBJECT
     PyGILState_Release( gstate );
+#endif
   }
 }
 
@@ -819,10 +828,11 @@ void PyConnectStub::deleteModuleByID( int id )
   while (!(miter == modules_.end() || (*miter)->id() == id)) miter++;
 
   if (miter != modules_.end()) {
+#ifndef OPENR_OBJECT
     // threadsafe lock
     PyGILState_STATE gstate;
     gstate = PyGILState_Ensure();
-
+#endif
     PyObject * arg = Py_BuildValue( "(si)", (*miter)->name().c_str(), id );
     if (pow_) {
       invokeCallback( pow_->mainScript(), "onModuleDestroyed", arg );
@@ -834,7 +844,9 @@ void PyConnectStub::deleteModuleByID( int id )
     PyObject_DelAttrString( pPyConnect_, const_cast<char *>((*miter)->name().c_str()) );
     Py_DECREF( *miter );
     modules_.erase( miter );
+#ifndef OPENR_OBJECT
     PyGILState_Release( gstate );
+#endif
   }
 }
 
@@ -921,10 +933,11 @@ MesgProcessResult PyConnectStub::processInput( unsigned char * recData, int byte
   else if (msgType == PEER_SERVER_MSG) {
     int peerServerID = *(message - 1) & 0xf;
     std::string peerMsg = unpackString( message, dummyLen );
+#ifndef OPENR_OBJECT
     // threadsafe lock
     PyGILState_STATE gstate;
     gstate = PyGILState_Ensure();
-
+#endif
     PyObject * arg = Py_BuildValue( "(is)", peerServerID, peerMsg.c_str() );
     if (pow_) {
       invokeCallback( pow_->mainScript(), "onPeerMessage", arg );
@@ -934,7 +947,9 @@ MesgProcessResult PyConnectStub::processInput( unsigned char * recData, int byte
     }
     Py_DECREF( arg );
 
+#ifndef OPENR_OBJECT
     PyGILState_Release( gstate );
+#endif
     return MESG_PROCESSED_OK;
   }
   else if (msgType == PEER_SERVER_DISCOVERY) {
@@ -951,10 +966,11 @@ MesgProcessResult PyConnectStub::processInput( unsigned char * recData, int byte
       return MESG_PROCESSED_FAILED;
     }
   }
+#ifndef OPENR_OBJECT
   // threadsafe lock
   PyGILState_STATE gstate;
   gstate = PyGILState_Ensure();
-
+#endif
   switch (msgType) {
     case ATTR_METD_EXPOSE:
     {
@@ -1034,8 +1050,9 @@ MesgProcessResult PyConnectStub::processInput( unsigned char * recData, int byte
       ERROR_MSG( "PythonServer::processInput invalid message header! Ignore.\n" );
       return MESG_PROCESSED_FAILED;
   }
+#ifndef OPENR_OBJECT
   PyGILState_Release( gstate );
-  
+#endif
   if (*message++ != PYCONNECT_MSG_END) {
     WARNING_MSG( "PythonServer::processInput: possible message corruption. msg id %d\n",
         msgType );

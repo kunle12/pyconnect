@@ -33,7 +33,9 @@
 #else
 #define SOCKET_T  int
 #define INVALID_SOCKET -1
+#ifndef OPENR_OBJECT
 #include <netinet/in.h>
+#endif
 #endif
 
 #include <vector>
